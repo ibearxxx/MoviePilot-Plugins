@@ -1,0 +1,16 @@
+{
+  "AutoCheckIn": {
+    "name": "站点自动签到",
+    "description": "实现站点自动签到，目前支持re0、栖影、聚影、蜗牛4K。",
+    "labels": "站点,签到",
+    "version": "1.0.0",
+    "icon": "https://raw.githubusercontent.com/ibearxxx/MoviePilot-Plugins/main/icons/autocheckin.png",
+    "author": "ibearxxx",
+    "level": 1,
+    "release": false,
+    "system_version": ">=3.0.0",
+    "history": {
+      "v1.0.0": "首个公开版本。支持re0、栖影、聚影、蜗牛4K 四个站点每日自动签到：蜗牛/聚影走纯 HTTP，栖影用 Cookie 注入本地浏览器后点签到按钮，re0 用 Browserless 过 Cloudflare 后自动点击。"
+    }
+  }
+}
