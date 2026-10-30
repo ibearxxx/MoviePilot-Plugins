@@ -67,7 +67,7 @@ class UltraHDBlindBox(_PluginBase):
                    "站点与 Cookie 取自 MoviePilot「站点管理」。")
     plugin_icon = ("https://raw.githubusercontent.com/ibearxxx/MoviePilot-Plugins/"
                    "main/icons/ultrahdblindbox.png")
-    plugin_version = "1.0.0"
+    plugin_version = "1.0.1"
     plugin_author = "ibearxxx"
     author_url = "https://github.com/"
     plugin_config_prefix = "ultrahdblindbox_"
@@ -551,6 +551,12 @@ class UltraHDBlindBox(_PluginBase):
             self._append_record("跳过", "skipped", "站点显示今日抽取次数已用完")
             return "盲盒：今日次数已用完，跳过"
 
+        prior = self._progress()
+        prior_drawn = int(prior.get("drawn") or 0)
+        prior_free = int(prior.get("free") or 0)
+        prior_paid = int(prior.get("paid") or 0)
+        prior_cost = int(prior.get("cost") or 0)
+
         planned = self._planned_draws(state)
         if planned <= 0:
             logger.info("今日免费额度已用掉，且「每日抽取次数」为 1，按规则跳过（不抽付费）")
@@ -560,16 +566,15 @@ class UltraHDBlindBox(_PluginBase):
                                 today.get("paid") or 0, today.get("cost") or 0)
             return "盲盒：今日免费额度已用掉，按规则跳过"
 
-        done = self._drawn_today()
+        # 「已完成」必须和 planned 同一口径：
+        #   免费还在 → planned = N（含免费那次），已完成用当天总抽取次数；
+        #   免费已用 → planned = N-1（只剩付费），已完成只能用当天**已付费**次数。
+        # 两处都用总次数就会把免费那一次重复扣掉：N=2、免费已被本插件抽掉时
+        # planned=1、done=1 → 直接跳过。用户看到的现象正是「改成 2 还是不抽」。
+        done = prior_drawn if free_left_now > 0 else prior_paid
         if done >= planned:
             logger.info(f"今天已经抽过 {done} 次（计划 {planned} 次），跳过——同一天不重复抽")
             return f"盲盒：今天已抽过 {done} 次，跳过"
-
-        # 当天早先几轮的数字要带上：进度按天累计，不是「只记这一轮」
-        prior = self._progress()
-        prior_free = int(prior.get("free") or 0)
-        prior_paid = int(prior.get("paid") or 0)
-        prior_cost = int(prior.get("cost") or 0)
 
         picks: List[Tuple[bool, DrawResult]] = []
         failed = ""
@@ -594,12 +599,14 @@ class UltraHDBlindBox(_PluginBase):
             if use_free:
                 free_left -= 1
             picks.append((use_free, result))
-            logger.info(f"{site_name} 第 {done + len(picks)} 次"
+            # 序号与「今日已抽」用的是当天总次数，不是上面那个按付费口径算的 done
+            total_drawn = prior_drawn + len(picks)
+            logger.info(f"{site_name} 第 {total_drawn} 次"
                         f"（{'免费' if use_free else '付费'}）：{result.reward}")
             # 每抽成一次就落盘：进程中途被打断也不会在下次运行时重复付费抽
             run_free = sum(1 for free, _r in picks if free)
             run_paid = len(picks) - run_free
-            self._save_progress(done + len(picks),
+            self._save_progress(total_drawn,
                                 prior_free + run_free,
                                 prior_paid + run_paid,
                                 prior_cost + self._cost_of(picks, state.magic,
